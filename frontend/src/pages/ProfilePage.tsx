@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Avatar } from '../components/Avatar';
 import { ErrorState } from '../components/ErrorState';
 import { Layout } from '../components/Layout';
 import { LoadingState } from '../components/LoadingState';
@@ -24,7 +25,7 @@ export function ProfilePage() {
       {error && <ErrorState message={error} />}
       {me && (
         <section className="card profile">
-          {me.avatarUrl && <img src={me.avatarUrl} alt="Avatar" />}
+          <Avatar src={me.avatarUrl} name={me.displayName} email={me.email} />
           <h2>{me.displayName ?? me.email ?? 'Player'}</h2>
           <p>{me.email}</p>
           <p><strong>Score:</strong> {me.score}</p>
