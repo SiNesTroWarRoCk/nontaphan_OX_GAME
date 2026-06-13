@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, Validate } from 'class-validator';
 import { ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 
@@ -28,9 +29,17 @@ class IsBoardSnapshotConstraint implements ValidatorConstraintInterface {
 }
 
 export class SubmitGameResultDto {
+  @ApiProperty({ enum: GameResult, example: GameResult.WIN })
   @IsEnum(GameResult)
   result!: GameResult;
 
+  @ApiProperty({
+    example: [
+      ['X', 'O', 'X'],
+      ['O', 'X', null],
+      [null, 'O', 'X'],
+    ],
+  })
   @IsArray()
   @ArrayMinSize(3)
   @ArrayMaxSize(3)
