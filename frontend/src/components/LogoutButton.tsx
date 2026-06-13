@@ -1,11 +1,13 @@
-import { useAuth0 } from '@auth0/auth0-react';
+import { googleLogout } from '@react-oauth/google';
+import { useAuth } from '../auth/AuthContext';
 
 export function LogoutButton() {
-  const { logout } = useAuth0();
+  const { logout } = useAuth();
 
-  return (
-    <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
-      Logout
-    </button>
-  );
+  function handleLogout() {
+    googleLogout();
+    logout();
+  }
+
+  return <button onClick={handleLogout}>Logout</button>;
 }
