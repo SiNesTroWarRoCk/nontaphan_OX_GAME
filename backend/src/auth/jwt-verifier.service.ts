@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import jwt, { JwtHeader, JwtPayload, SigningKeyCallback } from 'jsonwebtoken';
-import jwksClient, { JwksClient } from 'jwks-rsa';
+import { JwksClient } from 'jwks-rsa';
 import type { AuthUser } from './auth.types';
 
 type Auth0JwtPayload = JwtPayload & {
@@ -21,7 +21,7 @@ export class JwtVerifierService {
   constructor(private readonly config: ConfigService) {
     this.audience = this.config.get<string>('AUTH0_AUDIENCE') ?? '';
     this.issuerUrl = this.resolveIssuerUrl();
-    this.client = jwksClient({
+    this.client = new JwksClient({
       jwksUri: `${this.issuerUrl}.well-known/jwks.json`,
       cache: true,
       rateLimit: true,
