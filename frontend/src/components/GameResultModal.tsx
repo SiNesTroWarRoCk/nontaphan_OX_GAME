@@ -1,6 +1,8 @@
 import type { GameStatus } from '../types/game';
 
-const labels: Record<Exclude<GameStatus, 'IN_PROGRESS'>, string> = {
+type FinishedStatus = Exclude<GameStatus, 'IN_PROGRESS' | 'ABANDONED'>;
+
+const labels: Record<FinishedStatus, string> = {
   PLAYER_WIN: 'You win!',
   BOT_WIN: 'Bot wins',
   DRAW: 'Draw',
@@ -11,7 +13,7 @@ export function GameResultModal({
   message,
   onNewGame,
 }: {
-  status: Exclude<GameStatus, 'IN_PROGRESS'>;
+  status: FinishedStatus;
   message?: string;
   onNewGame: () => void;
 }) {

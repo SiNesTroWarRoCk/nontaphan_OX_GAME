@@ -13,6 +13,14 @@ enum GameResult {
   DRAW
 }
 
+enum GameStatus {
+  IN_PROGRESS
+  WIN
+  LOSE
+  DRAW
+  ABANDONED
+}
+
 model User {
   id               String        @id @default(uuid())
   provider         String
@@ -30,9 +38,24 @@ model User {
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
   gameHistories    GameHistory[]
+  games            GameSession[]
 
   @@unique([provider, providerUserId])
   @@map("users")
+}
+
+model GameSession {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  user        User       @relation(fields: [userId], references: [id])
+  board       Json
+  status      GameStatus @default(IN_PROGRESS)
+  scoredAt    DateTime?  @map("scored_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@map("game_sessions")
 }
 
 model GameHistory {

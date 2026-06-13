@@ -33,3 +33,13 @@ export type GameResultResponse = {
   consecutiveWins: number;
   message: string;
 };
+
+export type GameSessionResponse = {
+  id: string;
+  board: Array<Array<'X' | 'O' | null>>;
+  status: 'IN_PROGRESS' | 'PLAYER_WIN' | 'BOT_WIN' | 'DRAW' | 'ABANDONED';
+};
+
+export type MoveResponse = GameSessionResponse & {
+  scoring: GameResultResponse | null;
+};

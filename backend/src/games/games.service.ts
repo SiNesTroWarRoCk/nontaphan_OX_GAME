@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from '../common/prisma.service';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { GameStatus as PrismaGameStatus, Prisma } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
+import { PrismaService } from '../common/prisma.service';
 import { UsersService } from '../users/users.service';
+import { BotService } from './bot.service';
+import { Board, assertBoard, checkWinner, createInitialBoard, winnerToGameStatus } from './game.types';
 import { ScoreService } from './score.service';
-import { GameResult, SubmitGameResultDto } from './submit-game-result.dto';
+import { StartGameDto } from './start-game.dto';
+import { GameResult } from './submit-game-result.dto';
+import { SubmitMoveDto } from './submit-move.dto';
 
 @Injectable()
 export class GamesService {
@@ -11,55 +16,163 @@ export class GamesService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly scoreService: ScoreService,
+    private readonly botService: BotService,
   ) {}
 
-  async applyGameResult(authUser: AuthUser, dto: SubmitGameResultDto) {
-    this.validateSubmittedResult(dto);
-
+  async startGame(authUser: AuthUser, dto: StartGameDto = {}) {
     const user = await this.usersService.getOrCreateFromAuthUser(authUser);
+
+    if (dto.forceNew) {
+      await this.prisma.gameSession.updateMany({
+        where: { userId: user.id, status: PrismaGameStatus.IN_PROGRESS },
+        data: { status: PrismaGameStatus.ABANDONED },
+      });
+    } else {
+      const activeGame = await this.prisma.gameSession.findFirst({
+        where: { userId: user.id, status: PrismaGameStatus.IN_PROGRESS },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (activeGame) return this.toGameResponse(activeGame);
+    }
+
+    const game = await this.prisma.gameSession.create({
+      data: {
+        userId: user.id,
+        board: createInitialBoard(),
+        status: PrismaGameStatus.IN_PROGRESS,
+      },
+    });
+
+    return this.toGameResponse(game);
+  }
+
+  async submitMove(authUser: AuthUser, gameId: string, dto: SubmitMoveDto) {
+    const user = await this.usersService.getOrCreateFromAuthUser(authUser);
+
+    return this.prisma.$transaction(async (tx) => {
+      const game = await tx.gameSession.findFirst({
+        where: { id: gameId, userId: user.id },
+      });
+
+      if (!game) throw new NotFoundException('Game not found');
+      if (game.status !== PrismaGameStatus.IN_PROGRESS) {
+        throw new BadRequestException('Game already finished');
+      }
+
+      const board = game.board;
+      assertBoard(board);
+
+      if (board[dto.row][dto.col] !== null) {
+        throw new BadRequestException('Cell is already occupied');
+      }
+
+      board[dto.row][dto.col] = 'X';
+      let status = winnerToGameStatus(checkWinner(board));
+
+      if (!status) {
+        const botMove = this.botService.getMove(board);
+        if (botMove) {
+          board[botMove.row][botMove.col] = 'O';
+        }
+        status = winnerToGameStatus(checkWinner(board));
+      }
+
+      const nextStatus = status ?? PrismaGameStatus.IN_PROGRESS;
+      const updateResult = await tx.gameSession.updateMany({
+        where: {
+          id: game.id,
+          status: PrismaGameStatus.IN_PROGRESS,
+          updatedAt: game.updatedAt,
+        },
+        data: {
+          board: board as Prisma.InputJsonValue,
+          status: nextStatus,
+          scoredAt: nextStatus === PrismaGameStatus.IN_PROGRESS ? null : new Date(),
+        },
+      });
+
+      if (updateResult.count !== 1) {
+        throw new BadRequestException('Game state changed. Please refresh and try again.');
+      }
+
+      const updatedGame = await tx.gameSession.findUniqueOrThrow({ where: { id: game.id } });
+      const scoring = nextStatus === PrismaGameStatus.IN_PROGRESS ? null : await this.applyScore(tx, user.id, board, nextStatus);
+
+      return {
+        ...this.toGameResponse(updatedGame),
+        scoring,
+      };
+    });
+  }
+
+  private async applyScore(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    board: Board,
+    status: Exclude<PrismaGameStatus, 'IN_PROGRESS' | 'ABANDONED'>,
+  ) {
+    const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+    const result = this.statusToResult(status);
     const calculated = this.scoreService.calculateScore({
       currentScore: user.score,
       consecutiveWins: user.consecutiveWins,
-      result: dto.result,
+      result,
+    });
+    const stats = this.getStatIncrement(result);
+
+    const updatedUser = await tx.user.update({
+      where: { id: user.id },
+      data: {
+        score: calculated.nextScore,
+        consecutiveWins: calculated.nextConsecutiveWins,
+        totalGames: { increment: 1 },
+        totalWins: { increment: stats.wins },
+        totalLosses: { increment: stats.losses },
+        totalDraws: { increment: stats.draws },
+        lastPlayedAt: new Date(),
+      },
     });
 
-    const stats = this.getStatIncrement(dto.result);
-
-    const updatedUser = await this.prisma.$transaction(async (tx) => {
-      const nextUser = await tx.user.update({
-        where: { id: user.id },
-        data: {
-          score: calculated.nextScore,
-          consecutiveWins: calculated.nextConsecutiveWins,
-          totalGames: { increment: 1 },
-          totalWins: { increment: stats.wins },
-          totalLosses: { increment: stats.losses },
-          totalDraws: { increment: stats.draws },
-          lastPlayedAt: new Date(),
-        },
-      });
-
-      await tx.gameHistory.create({
-        data: {
-          userId: user.id,
-          result: dto.result,
-          scoreChange: calculated.scoreChange,
-          bonusScore: calculated.bonusScore,
-          boardSnapshot: dto.boardSnapshot,
-        },
-      });
-
-      return nextUser;
+    await tx.gameHistory.create({
+      data: {
+        userId: user.id,
+        result,
+        scoreChange: calculated.scoreChange,
+        bonusScore: calculated.bonusScore,
+        boardSnapshot: board as Prisma.InputJsonValue,
+      },
     });
 
     return {
-      result: dto.result,
+      result,
       scoreChange: calculated.scoreChange,
       bonusScore: calculated.bonusScore,
       currentScore: updatedUser.score,
       consecutiveWins: updatedUser.consecutiveWins,
       message: calculated.message,
     };
+  }
+
+  private toGameResponse(game: { id: string; board: Prisma.JsonValue; status: PrismaGameStatus }) {
+    const board = game.board;
+    assertBoard(board);
+    return {
+      id: game.id,
+      board,
+      status: this.toFrontendStatus(game.status),
+    };
+  }
+
+  private toFrontendStatus(status: PrismaGameStatus) {
+    if (status === PrismaGameStatus.WIN) return 'PLAYER_WIN';
+    if (status === PrismaGameStatus.LOSE) return 'BOT_WIN';
+    return status;
+  }
+
+  private statusToResult(status: Exclude<PrismaGameStatus, 'IN_PROGRESS' | 'ABANDONED'>): GameResult {
+    if (status === PrismaGameStatus.WIN) return GameResult.WIN;
+    if (status === PrismaGameStatus.LOSE) return GameResult.LOSE;
+    return GameResult.DRAW;
   }
 
   private getStatIncrement(result: GameResult) {
@@ -69,41 +182,6 @@ export class GamesService {
       draws: result === GameResult.DRAW ? 1 : 0,
     };
   }
-
-  private validateSubmittedResult(dto: SubmitGameResultDto) {
-    const winner = checkWinner(dto.boardSnapshot);
-    const expectedResult = winner === 'X' ? GameResult.WIN : winner === 'O' ? GameResult.LOSE : winner === 'DRAW' ? GameResult.DRAW : null;
-
-    if (!expectedResult) {
-      throw new BadRequestException('Cannot submit an unfinished game');
-    }
-
-    if (expectedResult !== dto.result) {
-      throw new BadRequestException('Submitted result does not match board snapshot');
-    }
-  }
 }
 
-type Cell = 'X' | 'O' | null;
-type Winner = 'X' | 'O' | 'DRAW' | null;
-
-export function checkWinner(board: Cell[][]): Winner {
-  const lines = [
-    [board[0][0], board[0][1], board[0][2]],
-    [board[1][0], board[1][1], board[1][2]],
-    [board[2][0], board[2][1], board[2][2]],
-    [board[0][0], board[1][0], board[2][0]],
-    [board[0][1], board[1][1], board[2][1]],
-    [board[0][2], board[1][2], board[2][2]],
-    [board[0][0], board[1][1], board[2][2]],
-    [board[0][2], board[1][1], board[2][0]],
-  ];
-
-  for (const line of lines) {
-    if (line[0] && line[0] === line[1] && line[1] === line[2]) {
-      return line[0];
-    }
-  }
-
-  return board.every((row) => row.every((cell) => cell !== null)) ? 'DRAW' : null;
-}
+export { checkWinner } from './game.types';
