@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameResult {
+  WIN
+  LOSE
+  DRAW
+}
+
+model User {
+  id               String        @id @default(uuid())
+  provider         String
+  providerUserId   String        @map("provider_user_id")
+  email            String?
+  displayName      String?       @map("display_name")
+  avatarUrl        String?       @map("avatar_url")
+  score            Int           @default(0)
+  consecutiveWins  Int           @default(0) @map("consecutive_wins")
+  totalGames       Int           @default(0) @map("total_games")
+  totalWins        Int           @default(0) @map("total_wins")
+  totalLosses      Int           @default(0) @map("total_losses")
+  totalDraws       Int           @default(0) @map("total_draws")
+  lastPlayedAt     DateTime?     @map("last_played_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  gameHistories    GameHistory[]
+
+  @@unique([provider, providerUserId])
+  @@map("users")
+}
+
+model GameHistory {
+  id            String     @id @default(uuid())
+  userId        String     @map("user_id")
+  user          User       @relation(fields: [userId], references: [id])
+  result        GameResult
+  scoreChange   Int        @map("score_change")
+  bonusScore    Int        @default(0) @map("bonus_score")
+  boardSnapshot Json?      @map("board_snapshot")
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  @@map("game_histories")
+}
