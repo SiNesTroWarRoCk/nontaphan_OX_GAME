@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import jwt, { JwtHeader, JwtPayload, SigningKeyCallback } from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
+import type { JwtHeader, JwtPayload, SigningKeyCallback, VerifyErrors } from 'jsonwebtoken';
 import { JwksClient } from 'jwks-rsa';
 import type { AuthUser } from './auth.types';
 
@@ -19,10 +20,10 @@ export class JwtVerifierService {
   private readonly client: JwksClient;
 
   constructor(private readonly config: ConfigService) {
-    this.audience = this.config.get<string>('AUTH0_AUDIENCE') ?? '';
+    this.audience = this.config.get<string>('GOOGLE_CLIENT_ID') ?? this.config.get<string>('AUTH0_AUDIENCE') ?? '';
     this.issuerUrl = this.resolveIssuerUrl();
     this.client = new JwksClient({
-      jwksUri: `${this.issuerUrl}.well-known/jwks.json`,
+      jwksUri: this.resolveJwksUri(),
       cache: true,
       rateLimit: true,
       jwksRequestsPerMinute: 10,
@@ -41,9 +42,9 @@ export class JwtVerifierService {
         {
           algorithms: ['RS256'],
           audience: this.audience,
-          issuer: this.issuerUrl,
+          issuer: this.getAllowedIssuers(),
         },
-        (error, decoded) => {
+        (error: VerifyErrors | null, decoded: string | JwtPayload | undefined) => {
           if (error || !decoded || typeof decoded === 'string') {
             reject(error ?? new Error('Invalid token'));
             return;
@@ -52,7 +53,10 @@ export class JwtVerifierService {
           resolve(decoded as Auth0JwtPayload);
         },
       );
-    }).catch(() => {
+    }).catch((error) => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('JWT verification failed:', error instanceof Error ? error.message : error);
+      }
       throw new UnauthorizedException('Invalid or expired token');
     });
 
@@ -61,7 +65,7 @@ export class JwtVerifierService {
     }
 
     return {
-      provider: this.extractProvider(payload.sub),
+      provider: this.extractProvider(payload.sub, payload.iss),
       providerUserId: payload.sub,
       email: payload.email,
       displayName: payload.name ?? payload.nickname ?? payload.email,
@@ -88,7 +92,7 @@ export class JwtVerifierService {
   private resolveIssuerUrl(): string {
     const explicitIssuer = this.config.get<string>('AUTH0_ISSUER_URL');
     if (explicitIssuer) {
-      return explicitIssuer.endsWith('/') ? explicitIssuer : `${explicitIssuer}/`;
+      return explicitIssuer;
     }
 
     const domain = this.config.get<string>('AUTH0_DOMAIN') ?? '';
@@ -100,7 +104,38 @@ export class JwtVerifierService {
     return `https://${normalizedDomain}/`;
   }
 
-  private extractProvider(subject: string): string {
-    return subject.includes('|') ? subject.split('|')[0] : 'auth0';
+  private resolveJwksUri(): string {
+    const explicitJwksUri = this.config.get<string>('AUTH0_JWKS_URI');
+    if (explicitJwksUri) {
+      return explicitJwksUri;
+    }
+
+    const normalizedIssuer = this.issuerUrl.endsWith('/') ? this.issuerUrl : `${this.issuerUrl}/`;
+    return `${normalizedIssuer}.well-known/jwks.json`;
+  }
+
+  private getAllowedIssuers(): [string, ...string[]] {
+    const issuers = [this.issuerUrl];
+
+    if (this.issuerUrl.endsWith('/')) {
+      issuers.push(this.issuerUrl.replace(/\/$/, ''));
+    } else {
+      issuers.push(`${this.issuerUrl}/`);
+    }
+
+    if (this.issuerUrl.includes('accounts.google.com')) {
+      issuers.push('accounts.google.com', 'https://accounts.google.com');
+    }
+
+    const uniqueIssuers = [...new Set(issuers.filter(Boolean))];
+    return [uniqueIssuers[0], ...uniqueIssuers.slice(1)];
+  }
+
+  private extractProvider(subject: string, issuer?: string): string {
+    if (issuer?.includes('accounts.google.com')) {
+      return 'google';
+    }
+
+    return subject.includes('|') ? subject.split('|')[0] : 'oidc';
   }
 }
