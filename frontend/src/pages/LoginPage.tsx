@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { LoginButton } from '../components/LoginButton';
 import { LoadingState } from '../components/LoadingState';
 import { useAuth } from '../auth/AuthContext';
+import logoUrl from '../assets/images/logo.png';
 
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -12,6 +13,7 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-card">
+        <img className="login-logo" src={logoUrl} alt="OX Game logo" />
         <h1>OX Game</h1>
         <p>Login with Google to play Tic-tac-toe against a smart bot and compete on the scoreboard.</p>
         <LoginButton />

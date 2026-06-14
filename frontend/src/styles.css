@@ -33,6 +33,12 @@ a { color: #2457ff; text-decoration: none; font-weight: 700; }
   box-shadow: 0 12px 36px rgba(20, 30, 60, 0.08);
 }
 .login-card { max-width: 520px; text-align: center; }
+.login-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
 
 .game-grid { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
 .score-panel p { margin: 10px 0; }
