@@ -10,7 +10,7 @@
 - docker compose up -d
 - docker compose ps (looking status of container)
 - go to backend folder
-- copy .env values from google drive in email and paste into backend folder
+- copy .env values from google drive in email and paste into backend folder (dont forgot to renaming to .env)
   
 ## start service
 - cd backend
@@ -39,7 +39,7 @@ For protected APIs, click `Authorize` and paste the Google ID token as Bearer JW
 
 ## start service
 - cd frontend
-- copy .env values from google drive in email and paste into frontend folder
+- copy .env values from google drive in email and paste into frontend folder  (dont forgot to renaming to .env)
 - yarn install
 - yarn dev
 - open http://localhost:5173
