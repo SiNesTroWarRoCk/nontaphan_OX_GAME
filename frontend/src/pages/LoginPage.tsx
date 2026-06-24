@@ -14,9 +14,11 @@ export function LoginPage() {
     <main className="login-page">
       <section className="login-card">
         <img className="login-logo" src={logoUrl} alt="OX Game logo" />
-        <h1>OX Game</h1>
-        <p>Login with Google to play Tic-tac-toe against a smart bot and compete on the scoreboard.</p>
-        <LoginButton />
+        <h1 className="login-title">OX Game</h1>
+        <p className="login-description">Login with Google to play Tic-tac-toe against a smart bot and compete on the scoreboard.</p>
+        <div className="login-actions">
+          <LoginButton />
+        </div>
       </section>
     </main>
   );
