@@ -39,6 +39,7 @@ if (!rootElement) {
 } else if (!googleClientId) {
   rootElement.innerHTML = '<p>OX Game configuration error: missing Google Client ID.</p>';
 } else {
+  rootElement.classList.add('ox-game-widget');
   injectWidgetStyles();
 
   createRoot(rootElement).render(

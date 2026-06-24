@@ -26,12 +26,12 @@ export function ProfilePage() {
       {me && (
         <section className="card profile">
           <Avatar src={me.avatarUrl} name={me.displayName} email={me.email} />
-          <h2>{me.displayName ?? me.email ?? 'Player'}</h2>
-          <p>{me.email}</p>
-          <p><strong>Score:</strong> {me.score}</p>
-          <p><strong>Consecutive wins:</strong> {me.consecutiveWins}</p>
-          <p><strong>Total games:</strong> {me.totalGames}</p>
-          <p><strong>Wins/Losses/Draws:</strong> {me.totalWins}/{me.totalLosses}/{me.totalDraws}</p>
+          <h2 className="profile-title">{me.displayName ?? me.email ?? 'Player'}</h2>
+          <p className="profile-email">{me.email}</p>
+          <p className="profile-stat"><strong>Score:</strong> {me.score}</p>
+          <p className="profile-stat"><strong>Consecutive wins:</strong> {me.consecutiveWins}</p>
+          <p className="profile-stat"><strong>Total games:</strong> {me.totalGames}</p>
+          <p className="profile-stat"><strong>Wins/Losses/Draws:</strong> {me.totalWins}/{me.totalLosses}/{me.totalDraws}</p>
         </section>
       )}
     </Layout>

@@ -108,10 +108,10 @@ export function GamePage() {
       {error && <ErrorState message={error} />}
       <div className="game-grid">
         <ScorePanel user={user} />
-        <section className="card">
-          <h2>Player X vs Bot O</h2>
+        <section className="card game-card">
+          <h2 className="section-title">Player X vs Bot O</h2>
           <GameBoard board={board} disabled={status !== 'IN_PROGRESS' || submitting} onCellClick={handleCellClick} />
-          <button className="secondary" onClick={newGame} disabled={submitting}>New Game</button>
+          <button className="secondary game-action" onClick={newGame} disabled={submitting}>New Game</button>
         </section>
       </div>
       {status !== 'IN_PROGRESS' && status !== 'ABANDONED' && (

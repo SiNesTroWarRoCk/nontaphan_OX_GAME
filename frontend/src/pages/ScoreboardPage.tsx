@@ -20,13 +20,13 @@ export function ScoreboardPage() {
 
   return (
     <Layout>
-      <section className="card">
-        <h2>Scoreboard</h2>
+      <section className="card scoreboard-card">
+        <h2 className="section-title">Scoreboard</h2>
         {loading && <LoadingState />}
         {error && <ErrorState message={error} />}
         {!loading && !error && (
           <div className="table-wrap">
-            <table>
+            <table className="scoreboard-table">
               <thead>
                 <tr>
                   <th>Rank</th>

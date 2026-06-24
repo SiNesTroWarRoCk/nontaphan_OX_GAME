@@ -5,7 +5,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <main className="page">
       <header className="topbar">
-        <h1>OX Game</h1>
+        <h1 className="app-title">OX Game</h1>
         <Navbar />
       </header>
       {children}
