@@ -1,32 +1,61 @@
 import { Injectable } from '@nestjs/common';
-import { Board, Cell, checkWinner, cloneBoard } from './game.types';
+import { Board, Cell, checkWinner } from './game.types';
 
 export type Move = { row: number; col: number };
 
 @Injectable()
 export class BotService {
+  private readonly botSymbol: Cell = 'O';
+  private readonly playerSymbol: Cell = 'X';
+
   getMove(board: Board): Move | null {
     const available = this.getAvailableMoves(board);
     if (available.length === 0) return null;
 
-    const winningMove = this.findWinningMove(board, 'O');
-    if (winningMove) return winningMove;
+    let bestMove: Move | null = null;
+    let bestScore = -Infinity;
 
-    const blockingMove = this.findWinningMove(board, 'X');
-    if (blockingMove) return blockingMove;
+    for (const move of available) {
+      board[move.row][move.col] = this.botSymbol;
+      const score = this.minimax(board, 0, false, -Infinity, Infinity);
+      board[move.row][move.col] = null;
 
-    if (board[1][1] === null) return { row: 1, col: 1 };
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
 
-    const corners = available.filter(
-      (move) =>
-        (move.row === 0 && move.col === 0) ||
-        (move.row === 0 && move.col === 2) ||
-        (move.row === 2 && move.col === 0) ||
-        (move.row === 2 && move.col === 2),
-    );
-    if (corners.length > 0) return corners[0];
+    return bestMove;
+  }
 
-    return available[Math.floor(Math.random() * available.length)];
+  private minimax(board: Board, depth: number, isBotTurn: boolean, alpha: number, beta: number): number {
+    const winner = checkWinner(board);
+    if (winner === this.botSymbol) return 10 - depth;
+    if (winner === this.playerSymbol) return depth - 10;
+    if (winner === 'DRAW') return 0;
+
+    if (isBotTurn) {
+      let bestScore = -Infinity;
+      for (const move of this.getAvailableMoves(board)) {
+        board[move.row][move.col] = this.botSymbol;
+        bestScore = Math.max(bestScore, this.minimax(board, depth + 1, false, alpha, beta));
+        board[move.row][move.col] = null;
+        alpha = Math.max(alpha, bestScore);
+        if (beta <= alpha) break;
+      }
+      return bestScore;
+    }
+
+    let bestScore = Infinity;
+    for (const move of this.getAvailableMoves(board)) {
+      board[move.row][move.col] = this.playerSymbol;
+      bestScore = Math.min(bestScore, this.minimax(board, depth + 1, true, alpha, beta));
+      board[move.row][move.col] = null;
+      beta = Math.min(beta, bestScore);
+      if (beta <= alpha) break;
+    }
+    return bestScore;
   }
 
   private getAvailableMoves(board: Board): Move[] {
@@ -39,19 +68,5 @@ export class BotService {
       });
     });
     return moves;
-  }
-
-  private findWinningMove(board: Board, symbol: Cell): Move | null {
-    if (!symbol) return null;
-
-    for (const move of this.getAvailableMoves(board)) {
-      const nextBoard = cloneBoard(board);
-      nextBoard[move.row][move.col] = symbol;
-      if (checkWinner(nextBoard) === symbol) {
-        return move;
-      }
-    }
-
-    return null;
   }
 }
